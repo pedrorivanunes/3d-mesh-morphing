@@ -172,7 +172,6 @@ morph-3d/
 ├── models/          # malhas .obj de exemplo
 ├── docs/            # imagens/GIF usados neste README
 ├── requirements.txt
-└── LICENSE
 ```
 
 ## Limitações conhecidas e próximos passos
