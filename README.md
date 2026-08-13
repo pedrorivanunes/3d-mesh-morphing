@@ -29,7 +29,7 @@ e a transformação de um no outro.
   <tr>
     <td align="center"><b>Origem</b><br><img src="docs/banana.png" width="240"></td>
     <td align="center"><b>Destino</b><br><img src="docs/tree.png" width="240"></td>
-    <td align="center"><b>Morph</b><br><img src="docs/BananaToTreeUpdate.gif" width="240"></td>
+    <td align="center"><b>Morph</b><br><img src="docs/TreeToBanana.gif" width="240"></td>
   </tr>
 </table>
 
