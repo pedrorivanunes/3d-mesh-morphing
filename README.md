@@ -5,8 +5,6 @@ animando a transição diretamente sobre os vértices das malhas. O programa abr
 três janelas lado a lado: o objeto de origem, o objeto de destino e a janela onde
 a transformação acontece em tempo real.
 
-> Projeto originalmente desenvolvido para a disciplina de Computação Gráfica.
-
 ![Demonstração do morph](docs/TreeToBanana.gif)
 
 ---
@@ -42,7 +40,13 @@ e a transformação de um no outro.
 O mesmo pipeline aplicado a modelos com muito mais polígonos (castelo e busto
 humano), mostrando que funciona além dos objetos simples:
 
-<p align="center"><img src="docs/CasteloToHumano.gif" width="380"></p>
+<table>
+  <tr>
+    <td align="center"><b>Origem</b><br><img src="docs/castelo.png" width="240"></td>
+    <td align="center"><b>Destino</b><br><img src="docs/humano.png" width="240"></td>
+    <td align="center"><b>Morph</b><br><img src="docs/CasteloToHumano.gif" width="240"></td>
+  </tr>
+</table>
 
 ## Como funciona
 
@@ -213,7 +217,3 @@ Trabalho da disciplina de Computação Gráfica, cujo enunciado consistia em car
 dois objetos 3D e transformar um no outro pela manipulação direta de seus
 vértices. O código foi posteriormente revisado: correção de bugs,
 reorganização em módulos e documentação.
-
-## Licença
-
-Distribuído sob a licença MIT. Veja o arquivo [LICENSE](LICENSE).
