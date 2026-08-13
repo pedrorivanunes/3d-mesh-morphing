@@ -5,8 +5,6 @@ animando a transição diretamente sobre os vértices das malhas. O programa abr
 três janelas lado a lado: o objeto de origem, o objeto de destino e a janela onde
 a transformação acontece em tempo real.
 
-![Demonstração do morph](docs/TreeToBanana.gif)
-
 ---
 
 ## Sobre
