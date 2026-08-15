@@ -10,6 +10,11 @@ addopts = "-ra --strict-markers"
 # no test here takes more than a second; a minute means something is stuck,
 # and a stack trace beats a runner hanging until the job timeout
 timeout = 60
+# `signal`, the default on Unix, raises through SIGALRM -- which never lands
+# when the hang is inside a C library that restarts on EINTR, as the X11 and
+# GLUT calls do. `thread` runs a watchdog that dumps every thread's stack and
+# then calls os._exit(), so it works no matter what the process is stuck in.
+timeout_method = "thread"
 markers = [
     "gl: needs a real OpenGL context (skipped automatically when no display is available)",
 ]

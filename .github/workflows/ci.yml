@@ -157,9 +157,12 @@ jobs:
       - name: Run the suite inside the container
         run: |
           set +e
-          timeout 300 docker run --rm morph-3d-tests > out.txt 2>&1
-          status=$?
-          cat out.txt
+          # tee, not a redirect: the last attempt sent everything to a file and
+          # the step was killed before printing it, so the output was lost.
+          # -k makes timeout follow SIGTERM with SIGKILL; plain TERM is proxied
+          # into the container by `docker run` and does not end the client.
+          timeout -k 30 300 docker run --rm morph-3d-tests 2>&1 | tee out.txt
+          status=${PIPESTATUS[0]}
           echo "exit status: $status"
           if [ "$status" -ne 0 ]; then
             {
