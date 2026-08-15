@@ -9,11 +9,12 @@ import os
 from mesh import Mesh
 from point import Point
 
-MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
 
 
 def make_mesh(vertices, faces):
-    """Build an Mesh straight from coordinates, bypassing the .obj reader."""
+    """Build a Mesh straight from coordinates, bypassing the .obj reader."""
     mesh = Mesh()
     mesh.vertices = [Point(*v) for v in vertices]
     mesh.faces = [list(f) for f in faces]

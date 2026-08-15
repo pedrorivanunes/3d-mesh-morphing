@@ -20,10 +20,19 @@ from helpers import make_mesh
 # than letting collection blow up. (pytest.importorskip is not the tool here:
 # since 8.2 it re-raises when the ImportError names a nested dependency rather
 # than the requested module, which is exactly this case.)
+#
+# The except clause is deliberately broad. PyOpenGL does not fail cleanly when
+# it cannot load the GL library: instead of raising, it stores None for the
+# library and the import dies further in with
+#     AttributeError: 'NoneType' object has no attribute 'glGetError'
+# so catching ImportError alone would let collection blow up anyway.
 try:
     import renderer
-except ImportError:  # pragma: no cover - depends on the machine
-    pytest.skip("needs the OpenGL library", allow_module_level=True)
+except Exception as exc:  # pragma: no cover - depends on the machine
+    pytest.skip(
+        f"needs a working OpenGL library ({type(exc).__name__}: {exc})",
+        allow_module_level=True,
+    )
 
 pytestmark = pytest.mark.gl
 
