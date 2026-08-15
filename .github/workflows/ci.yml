@@ -77,18 +77,24 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set +e
-          {
-            echo "--- ldconfig ---"
-            ldconfig -p | grep -iE "libGL\.|libGLU\.|libGLX\." || echo "(no GL libraries found)"
-            echo "--- ctypes.util.find_library ---"
-            python -c "import ctypes.util as u; print('GL =', u.find_library('GL')); print('GLU =', u.find_library('GLU'))"
-            echo "--- import OpenGL.GL ---"
-            python -c "import OpenGL.GL; print('ok')" 2>&1 | tail -4
-            echo "--- import object3d ---"
-            python -c "import object3d; print('ok')" 2>&1 | tail -4
-            echo "--- pytest ---"
-            pytest -m "not gl" 2>&1 | tail -20
-          } > diag.txt 2>&1
+          python - > diag.txt 2>&1 <<'PY'
+          import ctypes, ctypes.util, os
+          import OpenGL.platform as p
+          print("DISPLAY=%r platform=%s" % (os.environ.get("DISPLAY"), type(p.PLATFORM).__name__))
+          print("find_library: OpenGL=%r GL=%r" % (
+              ctypes.util.find_library("OpenGL"), ctypes.util.find_library("GL")))
+          from OpenGL.platform import ctypesloader
+          for candidate in ("OpenGL", "GL"):
+              try:
+                  ctypesloader.loadLibrary(ctypes.cdll, candidate, mode=ctypes.RTLD_GLOBAL)
+                  print("load %s -> ok" % candidate)
+              except BaseException as exc:
+                  print("load %s -> %s: %s" % (candidate, type(exc).__name__, exc))
+          try:
+              print("PLATFORM.GL -> %r" % (p.PLATFORM.GL,))
+          except BaseException as exc:
+              print("PLATFORM.GL raised %s: %s" % (type(exc).__name__, exc))
+          PY
           cat diag.txt
           sed 's/^/::error::/' diag.txt
           exit 0
