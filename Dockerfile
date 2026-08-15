@@ -56,4 +56,12 @@ RUN chmod +x docker-entrypoint.sh
 
 # the entrypoint brings up Xvfb and sets DISPLAY, then execs whatever follows
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["pytest", "--cov", "--cov-report=term-missing"]
+
+# --cov-fail-under is not decoration here, it is what stops this image from
+# passing for the wrong reason. tests/test_render.py skips itself when OpenGL
+# is unusable, so a container with a broken graphics stack would report
+# "142 passed, 1 skipped", exit 0, and look green while proving nothing. Those
+# skipped tests are the only thing that reaches renderer.py, so coverage drops
+# from 100% to 65% and the run fails, which is the intended outcome: the whole
+# point of this image is to run the OpenGL tests.
+CMD ["pytest", "--cov", "--cov-report=term-missing", "--cov-fail-under=95"]
