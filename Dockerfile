@@ -19,12 +19,17 @@ FROM python:3.12-slim
 # libgl1-mesa-dri -> Mesa's drivers, including the llvmpipe software rasterizer
 # libglu1-mesa    -> GLU, used here for gluPerspective / gluLookAt
 # xvfb            -> an X server that renders into memory, with no monitor
+# xauth           -> xvfb-run authorises the X connection with it. Debian lists
+#                    it as a Recommends of xvfb rather than a Depends, so
+#                    --no-install-recommends silently leaves it out and
+#                    xvfb-run then fails. It has to be named explicitly.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         freeglut3-dev \
         libgl1 \
         libgl1-mesa-dri \
         libglu1-mesa \
+        xauth \
         xvfb \
     && rm -rf /var/lib/apt/lists/*
 

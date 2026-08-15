@@ -193,9 +193,11 @@ pytest
 ```
 
 The suite splits along the same line the code does. Everything about geometry —
-parsing `.obj` files, normalizing, matching faces, interpolating — is pure Python
-and runs anywhere, with no graphics driver involved: importing `OpenGL.GL` binds
-the library but never opens a window.
+parsing `.obj` files, normalizing, matching faces, interpolating — is pure Python:
+no display, no GPU and no GL context. It does still need the OpenGL *library* to
+be installed, because `object3d.py` imports `OpenGL.GL` at module level; on a bare
+Linux box that means `libgl1`. Importing binds the library, it never opens a
+window.
 
 The exception is `tests/test_render.py`, which opens a real GL context, runs the
 same `emit_morph` the application calls every frame, and reads the framebuffer

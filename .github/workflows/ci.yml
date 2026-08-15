@@ -55,6 +55,16 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
+      # object3d.py imports OpenGL at module level, so even the pure geometry
+      # tests need the *library* present -- no display, no GPU and no context,
+      # but libGL.so.1 has to be loadable or the conftest import fails.
+      # Windows always ships opengl32.dll, hence the guard.
+      - name: Install the OpenGL runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1
+
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
@@ -77,7 +87,10 @@ jobs:
 
       # freeglut is the window/context library the app uses; Xvfb is an X
       # server that draws into memory instead of a monitor; the Mesa DRI
-      # drivers provide the software rasterizer that stands in for a GPU
+      # drivers provide the software rasterizer that stands in for a GPU;
+      # xauth is what xvfb-run uses to authorise the connection -- it is only
+      # a Recommends of xvfb, so --no-install-recommends drops it and the
+      # runner's preinstalled copy is the only reason this ever worked
       - name: Install OpenGL and a virtual display
         run: |
           sudo apt-get update
@@ -86,6 +99,7 @@ jobs:
             libgl1 \
             libgl1-mesa-dri \
             libglu1-mesa \
+            xauth \
             xvfb
 
       - name: Install dependencies
