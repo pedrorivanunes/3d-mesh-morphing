@@ -207,7 +207,7 @@ pytest -m "not gl"      # geometry only, runs anywhere
 pytest -m gl            # the rendering test alone
 ```
 
-That split is worth the trouble: the geometry tests alone cover 69% of
+That split is worth the trouble: the geometry tests alone cover 63% of
 `object3d.py`, and the rendering test takes it to 100% — everything under
 `_emit_*` is unreachable without a context.
 
