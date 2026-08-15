@@ -52,6 +52,8 @@ COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
 
 COPY . .
+RUN chmod +x docker-entrypoint.sh
 
-# xvfb-run starts a throwaway X server and runs the command against it
-CMD ["xvfb-run", "-a", "pytest", "--cov", "--cov-report=term-missing"]
+# the entrypoint brings up Xvfb and sets DISPLAY, then execs whatever follows
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["pytest", "--cov", "--cov-report=term-missing"]
