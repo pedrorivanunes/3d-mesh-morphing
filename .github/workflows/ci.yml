@@ -161,12 +161,12 @@ jobs:
           # the step was killed before printing it, so the output was lost.
           # -k makes timeout follow SIGTERM with SIGKILL; plain TERM is proxied
           # into the container by `docker run` and does not end the client.
-          timeout -k 30 300 docker run --rm morph-3d-tests 2>&1 | tee out.txt
+          timeout -k 15 150 docker run --rm morph-3d-tests 2>&1 | tee out.txt
           status=${PIPESTATUS[0]}
           echo "exit status: $status"
           if [ "$status" -ne 0 ]; then
             {
-              echo "exit status $status (124 = timed out before finishing)"
+              echo "exit status $status (124 = killed by timeout, i.e. still stuck)"
               tail -n 20 out.txt
             } | sed 's/^/::error::/'
           fi
