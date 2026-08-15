@@ -1,19 +1,19 @@
-"""Morphing 3D entre dois objetos por associacao de faces e interpolacao linear.
+"""3D morphing between two objects through face matching and linear interpolation.
 
-Abre tres janelas: o objeto de origem, o de destino e a janela do morph.
+Opens three windows: the source object, the target object and the morph window.
 
-Controles (em qualquer janela):
-    W / S        rotaciona o objeto em torno de X
-    A / D        rotaciona o objeto em torno de Y
-    I / J / K / L move a camera (cima / esquerda / baixo / direita)
-    O / P        aproxima / afasta (campo de visao)
+Controls (in any window):
+    W / S        rotate the object around X
+    A / D        rotate the object around Y
+    I / J / K / L move the camera (up / left / down / right)
+    O / P        zoom in / out (field of view)
 
-Somente na janela de MORPH:
-    1            escolhe o objeto 1 como origem (destino = objeto 2)
-    2            escolhe o objeto 2 como origem (destino = objeto 1)
-    ESPACO       inicia a animacao do morph
-    M            alterna o modo de tratamento das faces excedentes
-                 (vizinho -> aleatorio -> colapso), reanimando na hora
+Only in the MORPH window:
+    1            pick object 1 as the source (target = object 2)
+    2            pick object 2 as the source (target = object 1)
+    SPACE        start the morph animation
+    M            cycle the leftover-face mode
+                 (neighbor -> random -> collapse), re-animating right away
 """
 
 import os
@@ -23,87 +23,87 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
 
-from objeto3d import Objeto3D
+from object3d import Object3D
 
 # --------------------------------------------------------------------- config
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Menu de objetos disponiveis (nome -> arquivo .obj). Troque MODELO_1 / MODELO_2
-# para morfar outros pares. Modelos "hard" tem muitas faces e deixam a
-# associacao lenta (ver "Limitacoes conhecidas" no README).
-MODELOS = {
-    "banana":  "models/easy1.obj",
-    "arvore":  "models/easy2.obj",
-    "animal":  "models/easy3.obj",
-    "carro":   "models/hard1.obj",
-    "castelo": "models/hard2.obj",
-    "humano":  "models/hard3.obj",
+# Menu of available objects (name -> .obj file). Change MODEL_1 / MODEL_2 to
+# morph other pairs. The "hard" models have many faces and make the matching
+# slow (see "Known limitations" in the README).
+MODELS = {
+    "banana": "models/easy1.obj",
+    "tree":   "models/easy2.obj",
+    "animal": "models/easy3.obj",
+    "car":    "models/hard1.obj",
+    "castle": "models/hard2.obj",
+    "human":  "models/hard3.obj",
 }
 
-CORES = {
-    "banana":  (1.000, 0.843, 0.000),
-    "arvore":  (0.000, 0.392, 0.000),
-    "animal":  (0.627, 0.322, 0.176),
-    "carro":   (0.863, 0.078, 0.235),
-    "castelo": (0.282, 0.239, 0.545),
-    "humano":  (0.737, 0.561, 0.561),
+COLORS = {
+    "banana": (1.000, 0.843, 0.000),
+    "tree":   (0.000, 0.392, 0.000),
+    "animal": (0.627, 0.322, 0.176),
+    "car":    (0.863, 0.078, 0.235),
+    "castle": (0.282, 0.239, 0.545),
+    "human":  (0.737, 0.561, 0.561),
 }
 
-# par usado por padrao (leve -> anima instantaneo, bom para prints/gif)
-MODELO_1 = "banana"
-MODELO_2 = "animal"
+# default pair (light -> animates instantly, good for screenshots/gifs)
+MODEL_1 = "banana"
+MODEL_2 = "animal"
 
-QUADROS_MORPH = 150          # quadros da animacao
-INTERVALO_MS = 16           # ~60 quadros por segundo
+MORPH_FRAMES = 150          # frames in the animation
+INTERVAL_MS = 16            # ~60 frames per second
 
-# Como tratar as faces excedentes quando os objetos tem numeros de poligonos
-# diferentes (alterne ao vivo com a tecla M):
-#   "vizinho"   -> excedentes vao para a face mais proxima (colapsos locais; padrao)
-#   "colapso"   -> todas na mesma face (colapso num unico ponto; expoe a limitacao)
-#   "aleatorio" -> faces aleatorias (caotico; mostra a importancia da correspondencia)
-MODOS = ["vizinho", "aleatorio", "colapso"]
-MODO_INICIAL = "vizinho"
+# How to handle the leftover faces when the objects have different polygon
+# counts (switch live with the M key):
+#   "neighbor" -> leftovers go to the closest face (local collapses; default)
+#   "collapse" -> all on the same face (collapse into a single point; exposes the limitation)
+#   "random"   -> random faces (chaotic; shows why the correspondence matters)
+MODES = ["neighbor", "random", "collapse"]
+INITIAL_MODE = "neighbor"
 
-# Aparencia da malha. Ajuste conforme o modelo: objetos com muitos poligonos
-# (os "hard*") ficam mais limpos com arestas finas (ex.: 0.5) e pontos menores;
-# objetos leves ficam bem com valores maiores.
-LARGURA_ARESTA = 0.5         # espessura do wireframe
-TAMANHO_VERTICE = 0.5        # tamanho dos pontos nos vertices
+# Mesh appearance. Tune it per model: objects with many polygons (the "hard*"
+# ones) look cleaner with thin edges (e.g. 0.5) and smaller dots; light objects
+# look fine with larger values.
+EDGE_WIDTH = 0.5            # wireframe thickness
+VERTEX_SIZE = 0.5           # size of the dots on the vertices
 
-# --------------------------------------------------------------------- estado
+# ---------------------------------------------------------------------- state
 obj1 = obj2 = None
-cor1 = cor2 = (1, 1, 1)
+color1 = color2 = (1, 1, 1)
 
-# estado da janela de morph
-morph_origem = None
-morph_destino = None
-morph_cor_origem = (1, 1, 1)     # cor no inicio da animacao (t = 0)
-morph_cor_destino = (1, 1, 1)    # cor no fim da animacao (t = 1)
-morph_assoc = None
+# morph window state
+morph_source = None
+morph_target = None
+morph_color_source = (1, 1, 1)   # color at the start of the animation (t = 0)
+morph_color_target = (1, 1, 1)   # color at the end of the animation (t = 1)
+morph_pairs = None
 morph_frame = 0
-morph_animando = False
-morph_iniciado = False
+morph_animating = False
+morph_started = False
 morph_ang_x = 0.0
 morph_ang_y = 0.0
-modo_excedente = MODO_INICIAL
+leftover_mode = INITIAL_MODE
 
 
 class Camera:
-    """Camera em orbita fixa olhando para a origem."""
+    """Fixed orbit camera looking at the origin."""
 
-    def __init__(self, posicao, fov):
-        self.posicao = list(posicao)
+    def __init__(self, position, fov):
+        self.position = list(position)
         self.fov = fov
 
-    def aplica(self):
-        largura = glutGet(GLUT_WINDOW_WIDTH)
-        altura = glutGet(GLUT_WINDOW_HEIGHT) or 1
+    def apply(self):
+        width = glutGet(GLUT_WINDOW_WIDTH)
+        height = glutGet(GLUT_WINDOW_HEIGHT) or 1
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(self.fov, largura / altura, 0.01, 50)
+        gluPerspective(self.fov, width / height, 0.01, 50)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
-        gluLookAt(self.posicao[0], self.posicao[1], self.posicao[2],
+        gluLookAt(self.position[0], self.position[1], self.position[2],
                   0, 0, 0, 0, 1, 0)
 
 
@@ -112,8 +112,8 @@ cam2 = Camera([3.0, 1.5, 3.0], 30)
 cam3 = Camera([3.0, 1.5, 3.0], 30)
 
 
-# ------------------------------------------------------------ setup do OpenGL
-def define_luz():
+# ------------------------------------------------------------------ GL setup
+def setup_light():
     glEnable(GL_LIGHTING)
     glEnable(GL_LIGHT0)
     glEnable(GL_COLOR_MATERIAL)
@@ -128,22 +128,22 @@ def define_luz():
     glMateriali(GL_FRONT_AND_BACK, GL_SHININESS, 40)
 
 
-def configura_gl():
-    """Configura o contexto GL da janela ativa (chamado por janela)."""
+def setup_gl():
+    """Configure the GL context of the active window (called per window)."""
     glClearColor(0.12, 0.12, 0.15, 1.0)
     glClearDepth(1.0)
     glEnable(GL_DEPTH_TEST)
     glDepthFunc(GL_LESS)
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-    # empurra as faces preenchidas levemente para tras, para que o wireframe
-    # e os vertices apareçam nitidos por cima (evita z-fighting)
+    # push the filled faces slightly back so the wireframe and the vertices
+    # show up crisply on top (avoids z-fighting)
     glEnable(GL_POLYGON_OFFSET_FILL)
     glPolygonOffset(1.0, 1.0)
-    define_luz()
+    setup_light()
 
 
-# ------------------------------------------------------------------- cenario
-def desenha_ladrilho():
+# -------------------------------------------------------------------- scenery
+def draw_tile():
     glColor3f(0.5, 0.5, 0.5)
     glNormal3f(0, 1, 0)
     glBegin(GL_QUADS)
@@ -164,94 +164,94 @@ def desenha_ladrilho():
     glEnable(GL_LIGHTING)
 
 
-def desenha_piso():
+def draw_floor():
     glPushMatrix()
     glTranslated(-20, -1, -10)
     for _ in range(-20, 20):
         glPushMatrix()
         for _ in range(-20, 20):
-            desenha_ladrilho()
+            draw_tile()
             glTranslated(0, 0, 1)
         glPopMatrix()
         glTranslated(1, 0, 0)
     glPopMatrix()
 
 
-# -------------------------------------------------------------- callbacks GL
-def desenha_janela1():
+# --------------------------------------------------------------- GL callbacks
+def draw_window1():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    cam1.aplica()
-    desenha_piso()
-    obj1.desenha(*cor1)
+    cam1.apply()
+    draw_floor()
+    obj1.draw(*color1)
     glutSwapBuffers()
 
 
-def desenha_janela2():
+def draw_window2():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    cam2.aplica()
-    desenha_piso()
-    obj2.desenha(*cor2)
+    cam2.apply()
+    draw_floor()
+    obj2.draw(*color2)
     glutSwapBuffers()
 
 
-def desenha_morph():
+def draw_morph():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    cam3.aplica()
-    desenha_piso()
+    cam3.apply()
+    draw_floor()
 
     glPushMatrix()
     glRotatef(morph_ang_x, 1, 0, 0)
     glRotatef(morph_ang_y, 0, 1, 0)
-    if morph_iniciado and morph_assoc is not None:
-        t = min(morph_frame / QUADROS_MORPH, 1.0)
-        # a cor tambem interpola: origem (t=0) -> destino (t=1)
-        r = (1 - t) * morph_cor_origem[0] + t * morph_cor_destino[0]
-        g = (1 - t) * morph_cor_origem[1] + t * morph_cor_destino[1]
-        b = (1 - t) * morph_cor_origem[2] + t * morph_cor_destino[2]
-        morph_origem.emite_morph(morph_destino, morph_assoc, t, r, g, b)
-    elif morph_origem is not None:
-        # antes de iniciar: mostra o objeto de origem estatico com sua cor
-        morph_origem.emite_estatico(*morph_cor_origem)
+    if morph_started and morph_pairs is not None:
+        t = min(morph_frame / MORPH_FRAMES, 1.0)
+        # the color is interpolated too: source (t=0) -> target (t=1)
+        r = (1 - t) * morph_color_source[0] + t * morph_color_target[0]
+        g = (1 - t) * morph_color_source[1] + t * morph_color_target[1]
+        b = (1 - t) * morph_color_source[2] + t * morph_color_target[2]
+        morph_source.emit_morph(morph_target, morph_pairs, t, r, g, b)
+    elif morph_source is not None:
+        # before starting: show the source object static, with its own color
+        morph_source.emit_static(*morph_color_source)
     glPopMatrix()
 
     glutSwapBuffers()
 
 
-def reshape(largura, altura):
-    glViewport(0, 0, largura, max(altura, 1))
+def reshape(width, height):
+    glViewport(0, 0, width, max(height, 1))
 
 
-def passo_morph(_):
-    """Avanca um quadro da animacao via timer (nao bloqueia o event loop)."""
-    global morph_frame, morph_animando
-    if not morph_animando:
+def morph_step(_):
+    """Advance one animation frame via timer (does not block the event loop)."""
+    global morph_frame, morph_animating
+    if not morph_animating:
         return
-    if morph_frame < QUADROS_MORPH:
+    if morph_frame < MORPH_FRAMES:
         morph_frame += 1
         glutPostRedisplay()
-        glutTimerFunc(INTERVALO_MS, passo_morph, 0)
+        glutTimerFunc(INTERVAL_MS, morph_step, 0)
     else:
-        morph_animando = False          # terminou: mantem o ultimo quadro
+        morph_animating = False         # done: keep the last frame on screen
         glutPostRedisplay()
 
 
-# ------------------------------------------------------------------ teclado
-def _controle_camera(key, cam):
+# ------------------------------------------------------------------- keyboard
+def _camera_control(key, cam):
     if key == b'i':
-        cam.posicao[1] += 0.5
+        cam.position[1] += 0.5
     elif key == b'k':
-        cam.posicao[1] -= 0.5
+        cam.position[1] -= 0.5
     elif key == b'j':
-        cam.posicao[0] -= 0.5
+        cam.position[0] -= 0.5
     elif key == b'l':
-        cam.posicao[0] += 0.5
+        cam.position[0] += 0.5
     elif key == b'o':
         cam.fov = max(cam.fov - 1, 5)
     elif key == b'p':
         cam.fov = min(cam.fov + 1, 100)
 
 
-def teclado1(key, x, y):
+def keyboard1(key, x, y):
     if key == b'w':
         obj1.ang_x += 2
     elif key == b's':
@@ -261,11 +261,11 @@ def teclado1(key, x, y):
     elif key == b'd':
         obj1.ang_y -= 2
     else:
-        _controle_camera(key, cam1)
+        _camera_control(key, cam1)
     glutPostRedisplay()
 
 
-def teclado2(key, x, y):
+def keyboard2(key, x, y):
     if key == b'w':
         obj2.ang_x += 2
     elif key == b's':
@@ -275,11 +275,11 @@ def teclado2(key, x, y):
     elif key == b'd':
         obj2.ang_y -= 2
     else:
-        _controle_camera(key, cam2)
+        _camera_control(key, cam2)
     glutPostRedisplay()
 
 
-def teclado3(key, x, y):
+def keyboard3(key, x, y):
     global morph_ang_x, morph_ang_y
     if key == b'w':
         morph_ang_x += 2
@@ -290,84 +290,84 @@ def teclado3(key, x, y):
     elif key == b'd':
         morph_ang_y -= 2
     elif key == b'1':
-        _seleciona_origem(1)
+        _select_source(1)
     elif key == b'2':
-        _seleciona_origem(2)
+        _select_source(2)
     elif key == b' ':
-        _inicia_morph()
+        _start_morph()
     elif key == b'm':
-        _cicla_modo()
+        _cycle_mode()
     else:
-        _controle_camera(key, cam3)
+        _camera_control(key, cam3)
     glutPostRedisplay()
 
 
-def _seleciona_origem(escolha):
-    global morph_origem, morph_destino, morph_cor_origem, morph_cor_destino
-    global morph_iniciado, morph_animando, morph_frame, morph_assoc
-    if escolha == 1:
-        morph_origem, morph_destino = obj1, obj2
-        morph_cor_origem, morph_cor_destino = cor1, cor2
+def _select_source(choice):
+    global morph_source, morph_target, morph_color_source, morph_color_target
+    global morph_started, morph_animating, morph_frame, morph_pairs
+    if choice == 1:
+        morph_source, morph_target = obj1, obj2
+        morph_color_source, morph_color_target = color1, color2
     else:
-        morph_origem, morph_destino = obj2, obj1
-        morph_cor_origem, morph_cor_destino = cor2, cor1
-    morph_iniciado = False
-    morph_animando = False
+        morph_source, morph_target = obj2, obj1
+        morph_color_source, morph_color_target = color2, color1
+    morph_started = False
+    morph_animating = False
     morph_frame = 0
-    morph_assoc = None
-    print(f"[morph] objeto {escolha} selecionado -- pressione ESPACO para animar.")
+    morph_pairs = None
+    print(f"[morph] object {choice} selected -- press SPACE to animate.")
 
 
-def _inicia_morph():
-    global morph_assoc, morph_frame, morph_animando, morph_iniciado
-    if morph_origem is None:
-        print("[morph] escolha 1 ou 2 antes de iniciar.")
+def _start_morph():
+    global morph_pairs, morph_frame, morph_animating, morph_started
+    if morph_source is None:
+        print("[morph] pick 1 or 2 before starting.")
         return
-    if morph_animando:
+    if morph_animating:
         return
-    print(f"[morph] calculando associacao de faces (modo: {modo_excedente})...")
-    morph_assoc = morph_origem.associa_faces(morph_destino, modo_excedente)
+    print(f"[morph] computing the face matching (mode: {leftover_mode})...")
+    morph_pairs = morph_source.match_faces(morph_target, leftover_mode)
     morph_frame = 0
-    morph_iniciado = True
-    morph_animando = True
-    glutTimerFunc(INTERVALO_MS, passo_morph, 0)
-    print(f"[morph] animando ({len(morph_assoc)} pares de faces).")
+    morph_started = True
+    morph_animating = True
+    glutTimerFunc(INTERVAL_MS, morph_step, 0)
+    print(f"[morph] animating ({len(morph_pairs)} face pairs).")
 
 
-def _cicla_modo():
-    global modo_excedente, morph_animando
-    modo_excedente = MODOS[(MODOS.index(modo_excedente) + 1) % len(MODOS)]
-    print(f"[morph] modo de faces excedentes: {modo_excedente}")
-    if morph_origem is not None:
-        morph_animando = False        # permite recomputar e reanimar na hora
-        _inicia_morph()
+def _cycle_mode():
+    global leftover_mode, morph_animating
+    leftover_mode = MODES[(MODES.index(leftover_mode) + 1) % len(MODES)]
+    print(f"[morph] leftover-face mode: {leftover_mode}")
+    if morph_source is not None:
+        morph_animating = False         # allows recomputing and re-animating on the spot
+        _start_morph()
 
 
-# --------------------------------------------------------------------- boot
-def carrega_modelos():
-    global obj1, obj2, cor1, cor2
-    caminho1 = os.path.join(BASE_DIR, MODELOS[MODELO_1])
-    caminho2 = os.path.join(BASE_DIR, MODELOS[MODELO_2])
-    obj1 = Objeto3D().carrega(caminho1)
-    obj1.normaliza()
-    obj1.color = CORES[MODELO_1]
-    obj2 = Objeto3D().carrega(caminho2)
-    obj2.normaliza()
-    obj2.color = CORES[MODELO_2]
+# ----------------------------------------------------------------------- boot
+def load_models():
+    global obj1, obj2, color1, color2
+    path1 = os.path.join(BASE_DIR, MODELS[MODEL_1])
+    path2 = os.path.join(BASE_DIR, MODELS[MODEL_2])
+    obj1 = Object3D().load(path1)
+    obj1.normalize()
+    obj1.color = COLORS[MODEL_1]
+    obj2 = Object3D().load(path2)
+    obj2.normalize()
+    obj2.color = COLORS[MODEL_2]
     for obj in (obj1, obj2):
-        obj.largura_aresta = LARGURA_ARESTA
-        obj.tamanho_vertice = TAMANHO_VERTICE
-    cor1 = CORES[MODELO_1]
-    cor2 = CORES[MODELO_2]
+        obj.edge_width = EDGE_WIDTH
+        obj.vertex_size = VERTEX_SIZE
+    color1 = COLORS[MODEL_1]
+    color2 = COLORS[MODEL_2]
 
 
-def _cria_janela(titulo, posicao, display_func, teclado_func):
-    glutInitWindowPosition(*posicao)
-    glutCreateWindow(titulo)
+def _create_window(title, position, display_func, keyboard_func):
+    glutInitWindowPosition(*position)
+    glutCreateWindow(title)
     glutDisplayFunc(display_func)
     glutReshapeFunc(reshape)
-    glutKeyboardFunc(teclado_func)
-    configura_gl()
+    glutKeyboardFunc(keyboard_func)
+    setup_gl()
 
 
 def main():
@@ -375,11 +375,11 @@ def main():
     glutInitDisplayMode(GLUT_RGBA | GLUT_DEPTH | GLUT_DOUBLE)
     glutInitWindowSize(500, 500)
 
-    carrega_modelos()
+    load_models()
 
-    _cria_janela("Morph 3D - Objeto 1 (origem)", (100, 120), desenha_janela1, teclado1)
-    _cria_janela("Morph 3D - Objeto 2 (destino)", (640, 120), desenha_janela2, teclado2)
-    _cria_janela("Morph 3D - Resultado", (1180, 120), desenha_morph, teclado3)
+    _create_window("Morph 3D - Object 1 (source)", (100, 120), draw_window1, keyboard1)
+    _create_window("Morph 3D - Object 2 (target)", (640, 120), draw_window2, keyboard2)
+    _create_window("Morph 3D - Result", (1180, 120), draw_morph, keyboard3)
 
     print(__doc__)
     glutMainLoop()

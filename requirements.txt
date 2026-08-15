@@ -1,4 +1,4 @@
 PyOpenGL==3.1.7
-# Opcional (acelera o PyOpenGL via C). Pode ser dificil de compilar em alguns
-# sistemas; se der problema na instalacao, basta remover esta linha.
+# Optional (speeds PyOpenGL up via C). It can be hard to build on some
+# systems; if the installation fails, just drop this line.
 PyOpenGL-accelerate==3.1.7

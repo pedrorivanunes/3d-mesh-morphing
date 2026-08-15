@@ -3,15 +3,22 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
-# Ambientes virtuais
+# Virtual environments
 .venv/
 venv/
 env/
 
-# Wheels / pacotes locais
+# Wheels / local packages
 *.whl
 
-# Sistema operacional / editores
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ruff_cache/
+
+# Operating system / editors
 .DS_Store
 Thumbs.db
 .idea/
