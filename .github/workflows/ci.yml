@@ -149,5 +149,22 @@ jobs:
       - name: Build the test image
         run: docker build -t morph-3d-tests .
 
+      # TEMPORARY diagnostics around the run. The container hung once instead of
+      # failing, and runner logs need a signed-in session to read, so: a hard
+      # `timeout` tells us whether pytest ever started (exit 124 means it did
+      # not, i.e. xvfb-run itself is stuck), and the tail is echoed as
+      # annotations, which the checks API does expose. Remove once green.
       - name: Run the suite inside the container
-        run: docker run --rm morph-3d-tests
+        run: |
+          set +e
+          timeout 300 docker run --rm morph-3d-tests > out.txt 2>&1
+          status=$?
+          cat out.txt
+          echo "exit status: $status"
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "exit status $status (124 = timed out before finishing)"
+              tail -n 20 out.txt
+            } | sed 's/^/::error::/'
+          fi
+          exit $status

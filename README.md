@@ -214,6 +214,13 @@ run anywhere, and it is what the coverage shows: `mesh.py` is fully covered by t
 geometry tests alone, while every line of `renderer.py` is unreachable without a
 GL context, so the rendering test is the only thing that can reach it.
 
+Coverage is measured over `mesh.py`, `renderer.py` and `point.py`, which are at
+100%. **`main.py` is not covered at all** and is deliberately excluded from the
+figure: it is GLUT callbacks and module-level state, verified by running the
+application rather than by tests. Counting it would put the number at 44%. The
+exclusion is a scoping decision, not a way to make the number look better, so it
+is stated here rather than buried in the config.
+
 On Linux the display comes from **Xvfb**, an X server that draws into memory
 instead of a monitor, with Mesa's `llvmpipe` software rasterizer standing in for
 a GPU. The `Dockerfile` packages exactly that, so the rendering tests give the

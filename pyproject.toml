@@ -7,6 +7,9 @@ testpaths = ["tests"]
 # the modules live at the repository root, so put it on sys.path for the tests
 pythonpath = ["."]
 addopts = "-ra --strict-markers"
+# no test here takes more than a second; a minute means something is stuck,
+# and a stack trace beats a runner hanging until the job timeout
+timeout = 60
 markers = [
     "gl: needs a real OpenGL context (skipped automatically when no display is available)",
 ]
@@ -58,5 +61,3 @@ known-first-party = ["main", "mesh", "renderer", "point", "conftest", "helpers"]
 # tutorials are written in; keeping it makes the file readable next to any
 # OpenGL reference, at the cost of star-import warnings.
 "main.py" = ["F403", "F405"]
-# the tests reach into private helpers on purpose: those are the units
-"tests/*" = ["SLF001"]
