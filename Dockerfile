@@ -33,8 +33,15 @@ RUN apt-get update \
         xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# force Mesa to use llvmpipe rather than looking for hardware that is not there
+# LIBGL_ALWAYS_SOFTWARE forces Mesa to use llvmpipe instead of looking for
+# hardware that is not there.
+#
+# PYTHONUNBUFFERED matters more than it looks: CI pipes the container output,
+# and a piped stdout makes Python switch to block buffering, so nothing appears
+# until the buffer fills or the process exits. If the run is then killed, the
+# buffer dies with it and the log is empty.
 ENV LIBGL_ALWAYS_SOFTWARE=1 \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
