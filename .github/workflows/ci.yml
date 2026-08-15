@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# a new push to the same branch makes the previous run pointless
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check --output-format=github .
+
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      # one broken version should not hide the state of the others
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          # the README documents Windows as a supported platform, so prove it
+          - os: windows-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # No apt packages and no display: mesh.py imports no OpenGL, so the
+      # geometry tests run on a bare machine. test_render.py skips itself when
+      # the GL library is missing; the `render` job below is what covers it.
+      - name: Run the geometry tests
+        run: pytest -m "not gl"
+
+  render:
+    name: headless render (xvfb + mesa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      # freeglut is the window/context library the app uses; Xvfb is an X
+      # server that draws into memory instead of a monitor; the Mesa DRI
+      # drivers provide the software rasterizer that stands in for a GPU;
+      # xauth is what xvfb-run uses to authorise the connection -- it is only
+      # a Recommends of xvfb, so --no-install-recommends drops it and the
+      # runner's preinstalled copy is the only reason this ever worked
+      - name: Install OpenGL and a virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            freeglut3-dev \
+            libgl1 \
+            libgl1-mesa-dri \
+            libglu1-mesa \
+            xauth \
+            xvfb
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # printing the renderer makes the logs self-explanatory: it should say
+      # llvmpipe, i.e. Mesa rendering on the CPU
+      - name: Show the renderer in use
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          xvfb-run -a python - <<'PY'
+          from OpenGL.GLUT import (
+              glutInit, glutInitDisplayMode, glutInitWindowSize, glutCreateWindow, GLUT_RGBA,
+          )
+          from OpenGL.GL import glGetString, GL_RENDERER, GL_VERSION
+
+          glutInit([b"ci"])
+          glutInitDisplayMode(GLUT_RGBA)
+          glutInitWindowSize(1, 1)
+          glutCreateWindow(b"probe")
+          print("renderer:", glGetString(GL_RENDERER))
+          print("version: ", glGetString(GL_VERSION))
+          PY
+
+      # the full suite this time: the GL tests are the reason this job exists,
+      # and running everything is what makes the coverage number meaningful
+      - name: Run the whole suite under a virtual display
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a pytest --cov --cov-report=term-missing --cov-fail-under=95
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: .coverage
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  docker:
+    name: docker image
+    runs-on: ubuntu-latest
+    # the container run hung once; a timeout keeps a hang from burning an hour
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # building the image on every run is what stops the Dockerfile from
+      # quietly rotting; running the suite inside it proves the image is
+      # actually self-sufficient, display and all
+      - name: Build the test image
+        run: docker build -t morph-3d-tests .
+
+      # The image runs the suite with --cov-fail-under=95, so a green here means
+      # the OpenGL tests really ran: they are the only thing that reaches
+      # renderer.py, and without them coverage falls to 65% and this fails.
+      - name: Run the suite inside the container
+        run: docker run --rm morph-3d-tests

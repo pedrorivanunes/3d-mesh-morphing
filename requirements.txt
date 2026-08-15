@@ -1,4 +1,6 @@
 PyOpenGL==3.1.7
-# Opcional (acelera o PyOpenGL via C). Pode ser dificil de compilar em alguns
-# sistemas; se der problema na instalacao, basta remover esta linha.
-PyOpenGL-accelerate==3.1.7
+# Optional: a C extension that speeds PyOpenGL up. Pinned ahead of PyOpenGL
+# itself on purpose -- 3.1.7 was compiled against the numpy 1.x C ABI and dies
+# with "numpy.dtype size changed" on numpy 2. If it fails to build on your
+# system, just drop this line; nothing here depends on it.
+PyOpenGL-accelerate==3.1.10

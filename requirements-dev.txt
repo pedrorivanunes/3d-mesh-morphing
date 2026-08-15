@@ -1,0 +1,15 @@
+# Development and CI dependencies.
+#
+# This deliberately does NOT include requirements.txt. That file offers the
+# optional PyOpenGL-accelerate, a compiled extension pinned to one numpy ABI:
+# when numpy releases a new major version the two stop matching and every call
+# that allocates an array fails. Nothing in the test suite needs it, so leaving
+# it out keeps CI from breaking for reasons that have nothing to do with the
+# code under test.
+PyOpenGL==3.1.7
+
+pytest==9.1.1
+pytest-cov==7.1.0
+# turns a hung test into a failure with a stack trace instead of a dead runner
+pytest-timeout==2.4.0
+ruff==0.16.3

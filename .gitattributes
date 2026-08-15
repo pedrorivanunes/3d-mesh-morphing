@@ -1,0 +1,7 @@
+# Normalise line endings so files written on Windows still work on Linux.
+* text=auto
+
+# These must keep LF no matter what: a CRLF shebang makes the kernel report
+# "bad interpreter" inside a container, and a CRLF Dockerfile confuses parsers.
+*.sh text eol=lf
+Dockerfile text eol=lf
