@@ -18,6 +18,7 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +37,7 @@ jobs:
   test:
     name: test (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       # one broken version should not hide the state of the others
       fail-fast: false
@@ -68,6 +70,29 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # TEMPORARY. Runner logs need a signed-in session to read, but annotations
+      # are exposed by the checks API, so this echoes the diagnosis as one.
+      # Delete once the Linux failure is understood.
+      - name: Diagnose the environment
+        if: runner.os == 'Linux'
+        run: |
+          set +e
+          {
+            echo "--- ldconfig ---"
+            ldconfig -p | grep -iE "libGL\.|libGLU\.|libGLX\." || echo "(no GL libraries found)"
+            echo "--- ctypes.util.find_library ---"
+            python -c "import ctypes.util as u; print('GL =', u.find_library('GL')); print('GLU =', u.find_library('GLU'))"
+            echo "--- import OpenGL.GL ---"
+            python -c "import OpenGL.GL; print('ok')" 2>&1 | tail -4
+            echo "--- import object3d ---"
+            python -c "import object3d; print('ok')" 2>&1 | tail -4
+            echo "--- pytest ---"
+            pytest -m "not gl" 2>&1 | tail -20
+          } > diag.txt 2>&1
+          cat diag.txt
+          sed 's/^/::error::/' diag.txt
+          exit 0
+
       # no display on these runners, so the OpenGL tests are excluded here;
       # the `render` job below is the one that covers them
       - name: Run the geometry tests
@@ -76,6 +101,7 @@ jobs:
   render:
     name: headless render (xvfb + mesa)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -144,6 +170,8 @@ jobs:
   docker:
     name: docker image
     runs-on: ubuntu-latest
+    # the container run hung once; a timeout keeps a hang from burning an hour
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
