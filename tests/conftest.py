@@ -11,7 +11,7 @@ import os
 import pytest
 
 from helpers import MODELS_DIR, make_mesh
-from object3d import Object3D
+from mesh import Mesh
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def two_triangles():
 @pytest.fixture
 def banana():
     """A real mesh from the repository (612 faces), used as a sanity fixture."""
-    return Object3D().load(os.path.join(MODELS_DIR, "easy1.obj"))
+    return Mesh().load(os.path.join(MODELS_DIR, "easy1.obj"))
 
 
 @pytest.fixture(scope="session")

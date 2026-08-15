@@ -1,34 +1,23 @@
-"""3D object loaded from an .obj file, with morphing support.
+"""Mesh geometry: loading, normalization, face matching and interpolation.
 
-Morphing happens in two steps:
-  1. `match_faces`: pairs every face of this object with the closest face of
-     the target object (nearest neighbour by centroid);
-  2. `emit_morph`: linearly interpolates the vertices of the paired faces
-     according to a parameter t in [0, 1].
+This module deliberately imports no OpenGL. Everything here is arithmetic over
+vertices and faces, so it can be read, reasoned about and tested without a
+graphics library anywhere in sight -- `renderer.py` is where OpenGL lives.
+
+The split is not cosmetic. While `Object3D` held both halves, importing it to
+test a centroid pulled in the whole OpenGL binding, which made the test suite
+fail on any machine without the GL runtime installed even though not one line
+of it draws anything.
+
+Morphing happens in three steps:
+  1. `match_faces`: pairs every face of this mesh with the closest face of the
+     target mesh (nearest neighbour by centroid);
+  2. `interpolate`: produces the triangles of a single frame for a given t;
+  3. `renderer.emit_morph`: draws them.
 """
 
 from math import inf, sqrt
 from random import choice
-
-from OpenGL.GL import (
-    GL_LIGHTING,
-    GL_LINE_LOOP,
-    GL_POINTS,
-    GL_TRIANGLES,
-    glBegin,
-    glColor3f,
-    glDisable,
-    glEnable,
-    glEnd,
-    glLineWidth,
-    glNormal3f,
-    glPointSize,
-    glPopMatrix,
-    glPushMatrix,
-    glRotatef,
-    glTranslatef,
-    glVertex3f,
-)
 
 from point import Point
 
@@ -43,8 +32,12 @@ def _nearest_index(centroid, centroids):
     return best_i
 
 
-def _triangle_normal(p0, p1, p2):
-    """Unit normal of a triangle (used for flat shading)."""
+def triangle_normal(p0, p1, p2):
+    """Unit normal of a triangle (used for flat shading).
+
+    Public because the renderer needs it, but it is plain vector arithmetic and
+    belongs with the geometry rather than with the drawing code.
+    """
     ux, uy, uz = p1.x - p0.x, p1.y - p0.y, p1.z - p0.z
     vx, vy, vz = p2.x - p0.x, p2.y - p0.y, p2.z - p0.z
     nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
@@ -52,7 +45,9 @@ def _triangle_normal(p0, p1, p2):
     return nx / length, ny / length, nz / length
 
 
-class Object3D:
+class Mesh:
+    """A triangle mesh, plus the placement and appearance the renderer reads."""
+
     def __init__(self):
         self.vertices = []      # list of Point
         self.faces = []         # list of triangles: each one is [i0, i1, i2]
@@ -107,61 +102,6 @@ class Object3D:
             v.y = (v.y - cy) / span
             v.z = (v.z - cz) / span
 
-    # ------------------------------------------------------------------ drawing
-    def _apply_transform(self):
-        glTranslatef(self.position.x, self.position.y, self.position.z)
-        glRotatef(self.ang_x, 1, 0, 0)
-        glRotatef(self.ang_y, 0, 1, 0)
-
-    def draw(self, r=None, g=None, b=None):
-        """Solid (lit) faces + wireframe + vertices, already transformed."""
-        if r is None:
-            r, g, b = self.color
-        glPushMatrix()
-        self._apply_transform()
-        self.emit_static(r, g, b)
-        glPopMatrix()
-
-    def emit_static(self, r, g, b):
-        """Emit the geometry without applying a transform or push/pop.
-        The caller owns the model matrix (used by the morph window)."""
-        self._emit_solid(r, g, b)
-        self._emit_wireframe()
-        self._emit_vertices()
-        glEnable(GL_LIGHTING)
-
-    def _emit_solid(self, r, g, b):
-        glEnable(GL_LIGHTING)
-        glColor3f(r, g, b)
-        glBegin(GL_TRIANGLES)
-        for face in self.faces:
-            p0, p1, p2 = (self.vertices[i] for i in face)
-            glNormal3f(*_triangle_normal(p0, p1, p2))
-            for idx in face:
-                v = self.vertices[idx]
-                glVertex3f(v.x, v.y, v.z)
-        glEnd()
-
-    def _emit_wireframe(self):
-        glDisable(GL_LIGHTING)
-        glColor3f(0, 0, 0)
-        glLineWidth(self.edge_width)
-        for face in self.faces:
-            glBegin(GL_LINE_LOOP)
-            for idx in face:
-                v = self.vertices[idx]
-                glVertex3f(v.x, v.y, v.z)
-            glEnd()
-
-    def _emit_vertices(self):
-        glDisable(GL_LIGHTING)
-        glColor3f(0, 0, 0)
-        glPointSize(self.vertex_size)
-        glBegin(GL_POINTS)
-        for v in self.vertices:
-            glVertex3f(v.x, v.y, v.z)
-        glEnd()
-
     # -------------------------------------------------------------------- morph
     def _centroid(self, face):
         cx = cy = cz = 0.0
@@ -174,19 +114,19 @@ class Object3D:
         return Point(cx / n, cy / n, cz / n)
 
     def match_faces(self, other, mode="neighbor"):
-        """Pair every face of this object with a face of `other`.
+        """Pair every face of this mesh with a face of `other`.
 
         Phase 1 (the same for every mode): greedy one-to-one pairing by
         nearest centroid, without reusing faces while free ones remain.
 
-        Phase 2: when the objects have different face counts, some faces are
+        Phase 2: when the meshes have different face counts, some faces are
         left without a partner. `mode` decides what happens to them:
-          - "collapse": all of them go to the SAME face of the other object.
+          - "collapse": all of them go to the SAME face of the other mesh.
                         This is the original behaviour; it produces the
                         collapse into a single point (useful to demonstrate
                         the limitation).
           - "neighbor": each leftover goes to the CLOSEST face of the other
-                        object (repetition allowed). The collapses stay local
+                        mesh (repetition allowed). The collapses stay local
                         and spread across the surface -- much nicer to watch.
           - "random":   each leftover goes to a random face. Deliberately
                         chaotic, showing why the correspondence matters.
@@ -247,12 +187,11 @@ class Object3D:
     def interpolate(self, other, pairs, t):
         """Geometry of a single morph frame: one triangle per pair of faces.
 
-        Every vertex is a linear interpolation between this object and `other`:
+        Every vertex is a linear interpolation between this mesh and `other`:
 
             v(t) = (1 - t) * v_self + t * v_other
 
-        so t = 0 reproduces this object exactly and t = 1 reproduces `other`.
-        Pure geometry, no OpenGL -- `emit_morph` is what draws the result.
+        so t = 0 reproduces this mesh exactly and t = 1 reproduces `other`.
         """
         return [
             [
@@ -265,35 +204,3 @@ class Object3D:
             ]
             for face1, face2 in pairs
         ]
-
-    def emit_morph(self, other, pairs, t, r, g, b):
-        """Draw a single morph frame (no push/pop and no transform; the caller
-        owns the model matrix). `t` goes from 0 (this object) to 1 (`other`)."""
-        # interpolate each triangle once and reuse it across the three passes
-        triangles = self.interpolate(other, pairs, t)
-
-        glEnable(GL_LIGHTING)
-        glColor3f(r, g, b)
-        glBegin(GL_TRIANGLES)
-        for tri in triangles:
-            glNormal3f(*_triangle_normal(*tri))
-            for v in tri:
-                glVertex3f(v.x, v.y, v.z)
-        glEnd()
-
-        glDisable(GL_LIGHTING)
-        glColor3f(0, 0, 0)
-        glLineWidth(self.edge_width)
-        for tri in triangles:
-            glBegin(GL_LINE_LOOP)
-            for v in tri:
-                glVertex3f(v.x, v.y, v.z)
-            glEnd()
-
-        glPointSize(self.vertex_size)
-        glBegin(GL_POINTS)
-        for tri in triangles:
-            for v in tri:
-                glVertex3f(v.x, v.y, v.z)
-        glEnd()
-        glEnable(GL_LIGHTING)

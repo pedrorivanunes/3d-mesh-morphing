@@ -14,6 +14,17 @@ import pytest
 
 from helpers import make_mesh
 
+# `-m "not gl"` deselects these tests, but pytest still *collects* the module,
+# and collecting it imports renderer, which imports OpenGL. On a machine with
+# no GL library that import is what fails, so skip the module outright rather
+# than letting collection blow up. (pytest.importorskip is not the tool here:
+# since 8.2 it re-raises when the ImportError names a nested dependency rather
+# than the requested module, which is exactly this case.)
+try:
+    import renderer
+except ImportError:  # pragma: no cover - depends on the machine
+    pytest.skip("needs the OpenGL library", allow_module_level=True)
+
 pytestmark = pytest.mark.gl
 
 SIZE = 64
@@ -134,19 +145,19 @@ class TestContext:
 
 class TestStaticRendering:
     def test_a_mesh_actually_puts_pixels_on_the_screen(self, window, quad):
-        pixels = render(lambda: quad.emit_static(1.0, 0.0, 0.0))
+        pixels = render(lambda: renderer.emit_static(quad, 1.0, 0.0, 0.0))
         assert drawn_pixel_count(pixels) > 100
 
     def test_draw_falls_back_to_the_object_color(self, window, quad):
         quad.color = (1.0, 0.0, 0.0)
-        explicit = render(lambda: quad.draw(1.0, 0.0, 0.0))
-        implicit = render(lambda: quad.draw())
+        explicit = render(lambda: renderer.draw(quad, 1.0, 0.0, 0.0))
+        implicit = render(lambda: renderer.draw(quad))
         assert implicit == explicit
 
     def test_draw_applies_the_object_transform(self, window, quad):
-        centered = render(lambda: quad.draw(1.0, 0.0, 0.0))
+        centered = render(lambda: renderer.draw(quad, 1.0, 0.0, 0.0))
         quad.position.x = 5.0
-        moved = render(lambda: quad.draw(1.0, 0.0, 0.0))
+        moved = render(lambda: renderer.draw(quad, 1.0, 0.0, 0.0))
         # pushed far to the right, the quad leaves the frustum
         assert drawn_pixel_count(centered) > drawn_pixel_count(moved)
 
@@ -156,23 +167,25 @@ class TestMorphRendering:
 
     def test_a_morph_frame_renders(self, window, quad, tall_quad):
         pairs = quad.match_faces(tall_quad, "neighbor")
-        pixels = render(lambda: quad.emit_morph(tall_quad, pairs, 0.5, 1.0, 0.0, 0.0))
+        pixels = render(lambda: renderer.emit_morph(quad, tall_quad, pairs, 0.5, 1.0, 0.0, 0.0))
         assert drawn_pixel_count(pixels) > 100
 
     def test_the_start_and_end_of_a_morph_look_different(self, window, quad, tall_quad):
         pairs = quad.match_faces(tall_quad, "neighbor")
-        start = render(lambda: quad.emit_morph(tall_quad, pairs, 0.0, 1.0, 0.0, 0.0))
-        end = render(lambda: quad.emit_morph(tall_quad, pairs, 1.0, 1.0, 0.0, 0.0))
+        start = render(lambda: renderer.emit_morph(quad, tall_quad, pairs, 0.0, 1.0, 0.0, 0.0))
+        end = render(lambda: renderer.emit_morph(quad, tall_quad, pairs, 1.0, 1.0, 0.0, 0.0))
         assert start != end
 
     def test_t_zero_renders_the_same_as_the_source_mesh(self, window, quad, tall_quad):
         pairs = quad.match_faces(tall_quad, "neighbor")
-        morph_at_zero = render(lambda: quad.emit_morph(tall_quad, pairs, 0.0, 1.0, 0.0, 0.0))
-        static = render(lambda: quad.emit_static(1.0, 0.0, 0.0))
+        morph_at_zero = render(
+            lambda: renderer.emit_morph(quad, tall_quad, pairs, 0.0, 1.0, 0.0, 0.0)
+        )
+        static = render(lambda: renderer.emit_static(quad, 1.0, 0.0, 0.0))
         assert morph_at_zero == static
 
     @pytest.mark.parametrize("mode", ["neighbor", "random", "collapse"])
     def test_every_mode_produces_a_drawable_frame(self, window, quad, tall_quad, mode):
         pairs = quad.match_faces(tall_quad, mode)
-        pixels = render(lambda: quad.emit_morph(tall_quad, pairs, 0.5, 0.0, 1.0, 0.0))
+        pixels = render(lambda: renderer.emit_morph(quad, tall_quad, pairs, 0.5, 0.0, 1.0, 0.0))
         assert drawn_pixel_count(pixels) > 0

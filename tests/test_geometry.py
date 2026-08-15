@@ -5,7 +5,7 @@ import math
 import pytest
 
 from helpers import make_mesh
-from object3d import Object3D, _nearest_index, _triangle_normal
+from mesh import Mesh, _nearest_index, triangle_normal
 from point import Point
 
 
@@ -58,7 +58,7 @@ class TestNormalize:
             assert hi == pytest.approx(0.5)
 
     def test_an_empty_mesh_is_left_alone(self):
-        mesh = Object3D()
+        mesh = Mesh()
         mesh.normalize()  # must not raise
         assert mesh.vertices == []
 
@@ -115,12 +115,12 @@ class TestNearestIndex:
 
 class TestTriangleNormal:
     def test_a_counter_clockwise_triangle_in_xy_points_at_plus_z(self):
-        n = _triangle_normal(Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0))
+        n = triangle_normal(Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0))
         assert n == pytest.approx((0.0, 0.0, 1.0))
 
     def test_reversing_the_winding_flips_the_normal(self):
-        a = _triangle_normal(Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0))
-        b = _triangle_normal(Point(0, 0, 0), Point(0, 1, 0), Point(1, 0, 0))
+        a = triangle_normal(Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0))
+        b = triangle_normal(Point(0, 0, 0), Point(0, 1, 0), Point(1, 0, 0))
         assert a == pytest.approx(tuple(-c for c in b))
 
     @pytest.mark.parametrize(
@@ -132,12 +132,12 @@ class TestTriangleNormal:
         ],
     )
     def test_the_normal_is_always_a_unit_vector(self, p0, p1, p2):
-        n = _triangle_normal(Point(*p0), Point(*p1), Point(*p2))
+        n = triangle_normal(Point(*p0), Point(*p1), Point(*p2))
         assert math.sqrt(sum(c * c for c in n)) == pytest.approx(1.0)
 
     def test_the_normal_is_perpendicular_to_both_edges(self):
         p0, p1, p2 = Point(1, 2, 3), Point(4, 6, 1), Point(-2, 0, 5)
-        nx, ny, nz = _triangle_normal(p0, p1, p2)
+        nx, ny, nz = triangle_normal(p0, p1, p2)
         for edge in ((p1.x - p0.x, p1.y - p0.y, p1.z - p0.z),
                      (p2.x - p0.x, p2.y - p0.y, p2.z - p0.z)):
             assert nx * edge[0] + ny * edge[1] + nz * edge[2] == pytest.approx(0.0)
@@ -145,11 +145,11 @@ class TestTriangleNormal:
     def test_a_collinear_triangle_does_not_blow_up(self):
         # zero-area triangle: the cross product is (0, 0, 0) and the guard in
         # the code stops the division by zero
-        n = _triangle_normal(Point(0, 0, 0), Point(1, 0, 0), Point(2, 0, 0))
+        n = triangle_normal(Point(0, 0, 0), Point(1, 0, 0), Point(2, 0, 0))
         assert n == (0.0, 0.0, 0.0)
 
     def test_normals_of_degenerate_morph_frames_stay_finite(self):
         # this is the case that actually shows up mid-morph, when a leftover
         # face collapses onto a single point
-        n = _triangle_normal(Point(1, 1, 1), Point(1, 1, 1), Point(1, 1, 1))
+        n = triangle_normal(Point(1, 1, 1), Point(1, 1, 1), Point(1, 1, 1))
         assert all(math.isfinite(c) for c in n)

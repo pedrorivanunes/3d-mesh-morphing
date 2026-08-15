@@ -23,7 +23,8 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
 
-from object3d import Object3D
+import renderer
+from mesh import Mesh
 
 # --------------------------------------------------------------------- config
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -182,7 +183,7 @@ def draw_window1():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     cam1.apply()
     draw_floor()
-    obj1.draw(*color1)
+    renderer.draw(obj1, *color1)
     glutSwapBuffers()
 
 
@@ -190,7 +191,7 @@ def draw_window2():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     cam2.apply()
     draw_floor()
-    obj2.draw(*color2)
+    renderer.draw(obj2, *color2)
     glutSwapBuffers()
 
 
@@ -208,10 +209,10 @@ def draw_morph():
         r = (1 - t) * morph_color_source[0] + t * morph_color_target[0]
         g = (1 - t) * morph_color_source[1] + t * morph_color_target[1]
         b = (1 - t) * morph_color_source[2] + t * morph_color_target[2]
-        morph_source.emit_morph(morph_target, morph_pairs, t, r, g, b)
+        renderer.emit_morph(morph_source, morph_target, morph_pairs, t, r, g, b)
     elif morph_source is not None:
         # before starting: show the source object static, with its own color
-        morph_source.emit_static(*morph_color_source)
+        renderer.emit_static(morph_source, *morph_color_source)
     glPopMatrix()
 
     glutSwapBuffers()
@@ -348,10 +349,10 @@ def load_models():
     global obj1, obj2, color1, color2
     path1 = os.path.join(BASE_DIR, MODELS[MODEL_1])
     path2 = os.path.join(BASE_DIR, MODELS[MODEL_2])
-    obj1 = Object3D().load(path1)
+    obj1 = Mesh().load(path1)
     obj1.normalize()
     obj1.color = COLORS[MODEL_1]
-    obj2 = Object3D().load(path2)
+    obj2 = Mesh().load(path2)
     obj2.normalize()
     obj2.color = COLORS[MODEL_2]
     for obj in (obj1, obj2):

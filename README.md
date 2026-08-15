@@ -55,7 +55,7 @@ bust), showing that it works beyond the simple objects:
 The morphing is split into four steps:
 
 **1. Loading and triangulation.**
-The `.obj` reader (`Object3D.load`) reads the vertices (`v`) and the faces (`f`),
+The `.obj` reader (`Mesh.load`) reads the vertices (`v`) and the faces (`f`),
 ignoring texture and normal indices. Faces with more than three vertices (quads
 and n-gons) are converted into triangles by *fan triangulation*, guaranteeing that
 every face has exactly three vertices — a necessary condition for the
@@ -63,14 +63,14 @@ interpolation to work consistently.
 
 **2. Normalization.**
 Each object is centered at the origin and scaled to fit inside a unit cube
-(`Object3D.normalize`), based on its *bounding box*. This puts objects of
+(`Mesh.normalize`), based on its *bounding box*. This puts objects of
 different sizes and origins into the same frame of reference, which is what makes
 it possible to interpolate one into the other coherently. Normalization runs
 **exactly once**, at load time.
 
 **3. Face matching.**
 Since the two objects have different topologies, we need to decide which face of
-one becomes which face of the other. `Object3D.match_faces` computes the
+one becomes which face of the other. `Mesh.match_faces` computes the
 *centroid* of every face and pairs each source face with the target face whose
 centroid is closest (nearest neighbour, greedily and without reusing faces while
 free ones remain). When one object has more faces than the other, the leftover
@@ -85,7 +85,7 @@ v(t) = (1 - t) · v_source + t · v_target
 ```
 
 At `t = 0` the result is exactly the source object; at `t = 1`, exactly the target
-one. The animation (`Object3D.emit_morph`) simply walks `t` from 0 to 1 across the
+one. The animation (`Mesh.interpolate`) simply walks `t` from 0 to 1 across the
 frames. *Flat* shading is applied by recomputing the normal of each interpolated
 triangle on every frame.
 
@@ -174,7 +174,8 @@ Only in the **Result** window:
 ```
 3d-mesh-morphing/
 ├── main.py          # windows, camera, keyboard input and animation loop
-├── object3d.py      # mesh loading, normalization, matching and morphing
+├── mesh.py          # geometry: loading, normalization, matching, interpolation
+├── renderer.py      # the only module that touches OpenGL
 ├── point.py         # 3D point/vector and helper operations
 ├── models/          # example .obj meshes
 ├── docs/            # images/GIFs used in this README
@@ -192,12 +193,11 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The suite splits along the same line the code does. Everything about geometry —
-parsing `.obj` files, normalizing, matching faces, interpolating — is pure Python:
-no display, no GPU and no GL context. It does still need the OpenGL *library* to
-be installed, because `object3d.py` imports `OpenGL.GL` at module level; on a bare
-Linux box that means `libgl1`. Importing binds the library, it never opens a
-window.
+The suite splits along the same line the code does. `mesh.py` holds the geometry —
+parsing `.obj` files, normalizing, matching faces, interpolating — and imports no
+OpenGL at all, so those tests run on a machine with no graphics stack installed:
+no library, no display, no GPU, no context. `renderer.py` is the only module that
+touches the graphics API.
 
 The exception is `tests/test_render.py`, which opens a real GL context, runs the
 same `emit_morph` the application calls every frame, and reads the framebuffer
@@ -209,9 +209,10 @@ pytest -m "not gl"      # geometry only, runs anywhere
 pytest -m gl            # the rendering test alone
 ```
 
-That split is worth the trouble: the geometry tests alone cover 63% of
-`object3d.py`, and the rendering test takes it to 100% — everything under
-`_emit_*` is unreachable without a context.
+That split is worth the trouble twice over. It is what lets the geometry tests
+run anywhere, and it is what the coverage shows: `mesh.py` is fully covered by the
+geometry tests alone, while every line of `renderer.py` is unreachable without a
+GL context, so the rendering test is the only thing that can reach it.
 
 On Linux the display comes from **Xvfb**, an X server that draws into memory
 instead of a monitor, with Mesa's `llvmpipe` software rasterizer standing in for

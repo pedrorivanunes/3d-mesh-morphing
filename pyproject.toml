@@ -12,7 +12,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["point", "object3d"]
+source = ["point", "mesh", "renderer"]
 
 [tool.coverage.report]
 show_missing = true
@@ -51,7 +51,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 # the modules sit at the repository root, so ruff cannot infer they are ours
-known-first-party = ["main", "object3d", "point", "conftest", "helpers"]
+known-first-party = ["main", "mesh", "renderer", "point", "conftest", "helpers"]
 
 [tool.ruff.lint.per-file-ignores]
 # main.py uses the classic `from OpenGL.GL import *` style that OpenGL code and

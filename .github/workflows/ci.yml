@@ -57,50 +57,12 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
-      # object3d.py imports OpenGL at module level, so even the pure geometry
-      # tests need the *library* present -- no display, no GPU and no context,
-      # but libGL.so.1 has to be loadable or the conftest import fails.
-      # Windows always ships opengl32.dll, hence the guard.
-      - name: Install the OpenGL runtime
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1
-
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      # TEMPORARY. Runner logs need a signed-in session to read, but annotations
-      # are exposed by the checks API, so this echoes the diagnosis as one.
-      # Delete once the Linux failure is understood.
-      - name: Diagnose the environment
-        if: runner.os == 'Linux'
-        run: |
-          set +e
-          python - > diag.txt 2>&1 <<'PY'
-          import ctypes, ctypes.util, os
-          import OpenGL.platform as p
-          print("DISPLAY=%r platform=%s" % (os.environ.get("DISPLAY"), type(p.PLATFORM).__name__))
-          print("find_library: OpenGL=%r GL=%r" % (
-              ctypes.util.find_library("OpenGL"), ctypes.util.find_library("GL")))
-          from OpenGL.platform import ctypesloader
-          for candidate in ("OpenGL", "GL"):
-              try:
-                  ctypesloader.loadLibrary(ctypes.cdll, candidate, mode=ctypes.RTLD_GLOBAL)
-                  print("load %s -> ok" % candidate)
-              except BaseException as exc:
-                  print("load %s -> %s: %s" % (candidate, type(exc).__name__, exc))
-          try:
-              print("PLATFORM.GL -> %r" % (p.PLATFORM.GL,))
-          except BaseException as exc:
-              print("PLATFORM.GL raised %s: %s" % (type(exc).__name__, exc))
-          PY
-          cat diag.txt
-          sed 's/^/::error::/' diag.txt
-          exit 0
-
-      # no display on these runners, so the OpenGL tests are excluded here;
-      # the `render` job below is the one that covers them
+      # No apt packages and no display: mesh.py imports no OpenGL, so the
+      # geometry tests run on a bare machine. test_render.py skips itself when
+      # the GL library is missing; the `render` job below is what covers it.
       - name: Run the geometry tests
         run: pytest -m "not gl"
 
