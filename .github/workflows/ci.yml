@@ -149,25 +149,8 @@ jobs:
       - name: Build the test image
         run: docker build -t morph-3d-tests .
 
-      # TEMPORARY diagnostics around the run. The container hung once instead of
-      # failing, and runner logs need a signed-in session to read, so: a hard
-      # `timeout` tells us whether pytest ever started (exit 124 means it did
-      # not, i.e. xvfb-run itself is stuck), and the tail is echoed as
-      # annotations, which the checks API does expose. Remove once green.
+      # The image runs the suite with --cov-fail-under=95, so a green here means
+      # the OpenGL tests really ran: they are the only thing that reaches
+      # renderer.py, and without them coverage falls to 65% and this fails.
       - name: Run the suite inside the container
-        run: |
-          set +e
-          # tee, not a redirect: the last attempt sent everything to a file and
-          # the step was killed before printing it, so the output was lost.
-          # -k makes timeout follow SIGTERM with SIGKILL; plain TERM is proxied
-          # into the container by `docker run` and does not end the client.
-          timeout -k 15 150 docker run --rm morph-3d-tests 2>&1 | tee out.txt
-          status=${PIPESTATUS[0]}
-          echo "exit status: $status"
-          if [ "$status" -ne 0 ]; then
-            {
-              echo "exit status $status (124 = killed by timeout, i.e. still stuck)"
-              tail -n 20 out.txt
-            } | sed 's/^/::error::/'
-          fi
-          exit $status
+        run: docker run --rm morph-3d-tests
