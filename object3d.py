@@ -11,10 +11,23 @@ from math import inf, sqrt
 from random import choice
 
 from OpenGL.GL import (
-    glBegin, glEnd, glVertex3f, glNormal3f, glColor3f,
-    glPushMatrix, glPopMatrix, glTranslatef, glRotatef,
-    glPointSize, glLineWidth, glEnable, glDisable,
-    GL_TRIANGLES, GL_LINE_LOOP, GL_POINTS, GL_LIGHTING,
+    GL_LIGHTING,
+    GL_LINE_LOOP,
+    GL_POINTS,
+    GL_TRIANGLES,
+    glBegin,
+    glColor3f,
+    glDisable,
+    glEnable,
+    glEnd,
+    glLineWidth,
+    glNormal3f,
+    glPointSize,
+    glPopMatrix,
+    glPushMatrix,
+    glRotatef,
+    glTranslatef,
+    glVertex3f,
 )
 
 from point import Point
@@ -57,7 +70,7 @@ class Object3D:
         Uses `split()` (any whitespace), which tolerates double spaces and
         Windows line endings.
         """
-        with open(path, "r") as file:
+        with open(path) as file:
             for line in file:
                 tokens = line.split()
                 if not tokens:
@@ -228,20 +241,33 @@ class Object3D:
 
         return pairs
 
-    def emit_morph(self, other, pairs, t, r, g, b):
-        """Draw a single morph frame (no push/pop and no transform; the caller
-        owns the model matrix). `t` goes from 0 (this object) to 1 (`other`)."""
-        # interpolate each triangle once and reuse it across the three passes
-        triangles = []
-        for face1, face2 in pairs:
-            triangles.append([
+    def interpolate(self, other, pairs, t):
+        """Geometry of a single morph frame: one triangle per pair of faces.
+
+        Every vertex is a linear interpolation between this object and `other`:
+
+            v(t) = (1 - t) * v_self + t * v_other
+
+        so t = 0 reproduces this object exactly and t = 1 reproduces `other`.
+        Pure geometry, no OpenGL -- `emit_morph` is what draws the result.
+        """
+        return [
+            [
                 Point(
                     (1 - t) * self.vertices[i].x + t * other.vertices[j].x,
                     (1 - t) * self.vertices[i].y + t * other.vertices[j].y,
                     (1 - t) * self.vertices[i].z + t * other.vertices[j].z,
                 )
                 for i, j in zip(face1, face2)
-            ])
+            ]
+            for face1, face2 in pairs
+        ]
+
+    def emit_morph(self, other, pairs, t, r, g, b):
+        """Draw a single morph frame (no push/pop and no transform; the caller
+        owns the model matrix). `t` goes from 0 (this object) to 1 (`other`)."""
+        # interpolate each triangle once and reuse it across the three passes
+        triangles = self.interpolate(other, pairs, t)
 
         glEnable(GL_LIGHTING)
         glColor3f(r, g, b)

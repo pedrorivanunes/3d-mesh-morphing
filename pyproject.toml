@@ -1,0 +1,62 @@
+# This project is a runnable script, not an installable package, so there is no
+# [project] table here -- the file exists to keep the tool configuration in one
+# place instead of scattering .ini / .cfg files around the repository.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# the modules live at the repository root, so put it on sys.path for the tests
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "gl: needs a real OpenGL context (skipped automatically when no display is available)",
+]
+
+[tool.coverage.run]
+source = ["point", "object3d"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# Only `ruff check` runs in CI, never `ruff format`. The source lines up dict
+# values and trailing comments in columns on purpose, and a formatter would
+# flatten all of it. Linting catches real problems; formatting is taste, and
+# the taste here is deliberate.
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes: undefined names, unused imports, ...
+    "I",    # isort: import ordering
+    "B",    # flake8-bugbear: likely bugs
+    "UP",   # pyupgrade: outdated syntax
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    # B905 wants every zip() to say strict=True or strict=False. Here the
+    # zipped sequences are equal-length by construction, and turning the rule
+    # on would change what happens at runtime if they ever were not (silent
+    # truncation becomes an exception). That is a semantic decision, not a
+    # style one, so it is left out of the linter's hands on purpose.
+    "B905",
+]
+
+[tool.ruff.lint.isort]
+# the modules sit at the repository root, so ruff cannot infer they are ours
+known-first-party = ["main", "object3d", "point", "conftest"]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py uses the classic `from OpenGL.GL import *` style that OpenGL code and
+# tutorials are written in; keeping it makes the file readable next to any
+# OpenGL reference, at the cost of star-import warnings.
+"main.py" = ["F403", "F405"]
+# the tests reach into private helpers on purpose: those are the units
+"tests/*" = ["SLF001"]

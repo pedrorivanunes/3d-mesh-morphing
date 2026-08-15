@@ -1,5 +1,9 @@
 # Morph 3D — mesh-to-mesh transformation by vertex interpolation
 
+[![CI](https://github.com/pedrorivanunes/3d-mesh-morphing/actions/workflows/ci.yml/badge.svg)](https://github.com/pedrorivanunes/3d-mesh-morphing/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A **Python + OpenGL** application that transforms ("morphs") one 3D object into
 another, animating the transition directly over the vertices of the meshes. The
 program opens three windows side by side: the source object, the target object
@@ -131,13 +135,15 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Per-platform notes:
+`PyOpenGL` is only a binding: it does not ship GLUT itself, so the library has to
+come from the system.
 
-- **Windows:** the `PyOpenGL` package already bundles FreeGLUT; normally nothing
-  beyond `requirements.txt` is needed.
-- **Linux:** you may need to install FreeGLUT through the package manager, for
-  example `sudo apt install freeglut3-dev`.
-- **macOS:** uses the system GLUT; installing via `pip` is usually enough.
+- **Linux:** install FreeGLUT through the package manager, for example
+  `sudo apt install freeglut3-dev libglu1-mesa`.
+- **Windows:** the wheel on PyPI contains no DLLs, so `pip install` alone leaves
+  `glutInit` undefined. Either drop a 64-bit `freeglut.dll` somewhere on `PATH`,
+  or install a PyOpenGL build that bundles it.
+- **macOS:** uses the GLUT that ships with the system, so `pip` is enough.
 
 To morph other objects, change the `MODEL_1` and `MODEL_2` constants at the top of
 `main.py` (the available names are in the `MODELS` dictionary).
@@ -172,8 +178,52 @@ Only in the **Result** window:
 ├── point.py         # 3D point/vector and helper operations
 ├── models/          # example .obj meshes
 ├── docs/            # images/GIFs used in this README
+├── tests/           # geometry tests + one off-screen rendering test
+├── Dockerfile       # reproducible environment for the rendering tests
+├── pyproject.toml   # pytest, coverage and ruff configuration
 ├── requirements.txt
+└── requirements-dev.txt
 ```
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+The suite splits along the same line the code does. Everything about geometry —
+parsing `.obj` files, normalizing, matching faces, interpolating — is pure Python
+and runs anywhere, with no graphics driver involved: importing `OpenGL.GL` binds
+the library but never opens a window.
+
+The exception is `tests/test_render.py`, which opens a real GL context, runs the
+same `emit_morph` the application calls every frame, and reads the framebuffer
+back to confirm that pixels actually changed. It needs a display, so it is marked
+`gl` and skips itself when there is none:
+
+```bash
+pytest -m "not gl"      # geometry only, runs anywhere
+pytest -m gl            # the rendering test alone
+```
+
+That split is worth the trouble: the geometry tests alone cover 69% of
+`object3d.py`, and the rendering test takes it to 100% — everything under
+`_emit_*` is unreachable without a context.
+
+On Linux the display comes from **Xvfb**, an X server that draws into memory
+instead of a monitor, with Mesa's `llvmpipe` software rasterizer standing in for
+a GPU. The `Dockerfile` packages exactly that, so the rendering tests give the
+same result on a machine with no graphics card:
+
+```bash
+docker build -t morph-3d-tests .
+docker run --rm morph-3d-tests
+```
+
+CI runs the geometry tests on Python 3.10–3.13 on Linux plus one Windows job,
+lints with `ruff`, and runs the full suite twice on Linux: once under `xvfb-run`
+directly, and once inside the container.
 
 ## Known limitations and next steps
 

@@ -1,0 +1,13 @@
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 13 MB of GIFs and screenshots for the README; the tests never touch them
+docs/
