@@ -10,7 +10,7 @@ import random
 
 import pytest
 
-from conftest import make_mesh
+from helpers import make_mesh
 
 MODES = ["neighbor", "random", "collapse"]
 

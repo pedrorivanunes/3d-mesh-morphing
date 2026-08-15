@@ -225,7 +225,10 @@ class Object3D:
             elif mode == "random":
                 face2 = choice(other.faces)
             else:  # collapse
-                face2 = other.faces[other_remaining.pop()] if other_remaining else pairs[-1][1]
+                # reaching this loop at all means phase 1 ran out of free faces,
+                # so `other_remaining` is necessarily empty here and the only
+                # thing left to reuse is the target of the last pair
+                face2 = pairs[-1][1]
             pairs.append((face1, face2))
 
         # phase 2b: other has leftover faces -> pick a face from `self`

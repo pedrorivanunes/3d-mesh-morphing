@@ -10,18 +10,8 @@ import os
 
 import pytest
 
+from helpers import MODELS_DIR, make_mesh
 from object3d import Object3D
-from point import Point
-
-MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
-
-
-def make_mesh(vertices, faces):
-    """Build an Object3D straight from coordinates, bypassing the .obj reader."""
-    mesh = Object3D()
-    mesh.vertices = [Point(*v) for v in vertices]
-    mesh.faces = [list(f) for f in faces]
-    return mesh
 
 
 @pytest.fixture

@@ -11,7 +11,7 @@ import copy
 
 import pytest
 
-from conftest import make_mesh
+from helpers import make_mesh
 
 
 def coords(triangles):

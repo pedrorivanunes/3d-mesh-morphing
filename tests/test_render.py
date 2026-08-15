@@ -12,7 +12,7 @@ whole module when neither is available.
 
 import pytest
 
-from conftest import make_mesh
+from helpers import make_mesh
 
 pytestmark = pytest.mark.gl
 

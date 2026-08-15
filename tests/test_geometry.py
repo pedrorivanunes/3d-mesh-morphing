@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from conftest import make_mesh
+from helpers import make_mesh
 from object3d import Object3D, _nearest_index, _triangle_normal
 from point import Point
 
