@@ -275,3 +275,7 @@ Coursework for a Computer Graphics course, whose assignment was to load two 3D
 objects and transform one into the other by directly manipulating their vertices.
 The code was revised afterwards: bug fixes, reorganization into modules and
 documentation.
+
+## License
+
+[MIT](LICENSE)
